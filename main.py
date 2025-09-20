@@ -8,9 +8,10 @@ from dotenv import load_dotenv
 
 from telegram import Update
 from telegram.constants import ChatAction
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
 
 from gemini import get_gemini_response, SYSTEM_PROMPT
+from create_post import create_post_command, generate_post, ask_description, handle_caption_choice, cancel, ASK_IMAGE, ASK_DESCRIPTION, CHOOSE_CAPTION
 from utils import split_message
 
 load_dotenv()
@@ -25,7 +26,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         logging.warning("No message found in update; ignoring.")
         return
     
-    # First model introduction message
+    await update.message.chat.send_action(action=ChatAction.TYPING)
+
     initial_prompt = [
         {"role": "user", "parts": [{"text": SYSTEM_PROMPT}]}
     ]
@@ -42,10 +44,38 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     await update.message.reply_text(initial_message)
 
+async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.message is None:
+        logging.warning("No message found in update; ignoring.")
+        return
+    
+    await update.message.chat.send_action(action=ChatAction.TYPING)
+
+    if context.user_data is not None:
+        context.user_data["chat_history"] = [
+            {"role": "user", "parts": [{"text": SYSTEM_PROMPT}]}
+        ]
+        logging.info(f"Chat history cleared for user {update.message.from_user}")
+    
+    if update.message:
+        await update.message.reply_text("Chat history cleared.")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.message:
-        await update.message.reply_text("Available commands:\n/start - Start the bot\n/help - Show this help message")
+    if update.message is None:
+        logging.warning("No message found in update; ignoring.")
+        return
+    
+    await update.message.chat.send_action(action=ChatAction.TYPING)
+
+    await update.message.reply_text(
+        """
+        Available commands:\n
+        /start - Start the bot\n
+        /clear - Clear chat history\n
+        /help - Show this help message
+        """
+    )
+
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -104,8 +134,21 @@ if __name__ == "__main__":
 
     app = ApplicationBuilder().token(TOKEN).build()
 
+    create_post_conv = ConversationHandler(
+        entry_points=[CommandHandler("create_post", create_post_command)],
+        states={
+            ASK_IMAGE: [MessageHandler(filters.PHOTO, ask_description)],
+            ASK_DESCRIPTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, generate_post)],
+            CHOOSE_CAPTION: [CallbackQueryHandler(handle_caption_choice)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel)]
+    )
+    
+    
     app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("clear", clear_command))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(create_post_conv)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     app.add_error_handler(error_handler)
