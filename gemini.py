@@ -4,7 +4,10 @@ from google import genai
 
 import os
 import json
+from io import BytesIO
 from dotenv import load_dotenv
+from PIL import Image as PILImage
+
 
 from tools import FUNCTION_DECLARATIONS
 
@@ -27,7 +30,7 @@ SYSTEM_PROMPT = (
     """
 )
 
-async def get_gemini_response(history: List[Dict[str, Any]]) -> str:
+async def get_gemini_response(history: Any) -> str:
     """
     Send the full conversation history to Gemini and return the model's response.
     """
@@ -50,6 +53,13 @@ class CaptionResponse(TypedDict):
     captions: List[Caption]
     error: str | None
 
+class Image(TypedDict):
+    fileName: str
+    filePath: str
+
+class ImageResponse(TypedDict):
+    images: List[Image]
+    error: str | None
 
 async def generate_marketing_captions(image_path: str, description: str) -> CaptionResponse:
     """
@@ -94,3 +104,61 @@ async def generate_marketing_captions(image_path: str, description: str) -> Capt
 
     except Exception as e:
         return {"captions": [], "error": f"Error generating captions: {str(e)}"}
+
+async def generate_marketing_images(image_path: str, description: str) -> ImageResponse:
+    try:
+        input_image = PILImage.open(image_path)
+
+        base_prompts = [
+            (
+                "Generate a professional, high-quality marketing image. "
+                f"Product: '{description}'. Lifestyle shot showing it in use by the target audience. "
+                "Modern, Instagram-ready framing and composition."
+            ),
+            (
+                "Create an elegant, artisanal studio showcase for this product: "
+                f"'{description}'. Use clean, minimal background and lighting to highlight texture and details."
+            ),
+            (
+                "Generate a contextual real-world scene for the product: "
+                f"'{description}'. The image should tell a story of everyday use by the target demographic."
+            ),
+        ]
+
+        out_images: List[Image] = []
+        os.makedirs(os.path.join("tmp", "generated"), exist_ok=True)
+
+        for i, prompt in enumerate(base_prompts, start=1):
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash-image-preview",
+                    contents=[prompt, input_image],  
+                )
+                if response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+                    for part in response.candidates[0].content.parts:
+                        if getattr(part, "inline_data", None) and part.inline_data and part.inline_data.data:
+                            data_bytes = part.inline_data.data
+                            try:
+                                img = PILImage.open(BytesIO(data_bytes)).convert("RGB")
+                                fname = f"generated_marketing_{i}_{os.path.splitext(os.path.basename(image_path))[0]}.jpeg"
+                                fpath = os.path.join("tmp", "generated", fname)
+                                img.save(fpath, format="JPEG")
+                                out_images.append({"fileName": fname, "filePath": fpath})
+                                print(f"Generated and saved image: {fpath}")
+                                break
+                            except Exception as e:
+                                print(f"Skipped invalid image bytes: {e}")
+                        elif getattr(part, "text", None):
+                            print(f"Model text: {part.text}")
+
+            except Exception as e:
+                print(f"Error generating image for prompt {i}: {e}")
+                continue
+
+        return {"images": out_images, "error": None} if out_images else {
+            "images": [],
+            "error": "No valid image parts returned. Confirm model access/billing and try again."
+        }
+
+    except Exception as e:
+        return {"images": [], "error": f"Image generation process failed: {e}"}
