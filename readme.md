@@ -1,4 +1,4 @@
-# Artisan Marketing Bot 🎨
+# DesiReach - Artisan Marketing Bot 🎨
 
 A Telegram bot powered by Google's Gemini AI that helps Indian artisans and craftsmen create professional marketing content for their products. The bot generates high-quality product images and compelling social media captions to help artisans expand their digital presence.
 
