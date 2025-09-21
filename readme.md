@@ -204,8 +204,4 @@ If you encounter any issues or need help:
 
 ---
 
-**Made with ❤️ to support Indian artisans and their digital journey by team Gravity
-(Ashiq Sudheer,
-Mathew Thomas,
-Malay Kumar)
-**
+**Made with ❤️ to support Indian artisans and their digital journey by team Gravity(Ashiq Sudheer,Mathew Thomas,Malay Kumar)**
