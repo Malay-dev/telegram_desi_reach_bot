@@ -11,7 +11,7 @@ from telegram.constants import ChatAction
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
 
 from gemini import get_gemini_response, SYSTEM_PROMPT
-from create_post import create_post_command, generate_post, ask_description, handle_caption_choice, cancel, ASK_IMAGE, ASK_DESCRIPTION, CHOOSE_CAPTION
+from create_post import create_post_command, generate_post, ask_description, handle_image_navigation, handle_caption_choice, cancel, ASK_IMAGE, ASK_DESCRIPTION, CHOOSE_CAPTION, CHOOSE_IMAGE
 from utils import split_message
 
 load_dotenv()
@@ -70,9 +70,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text(
         """
         Available commands:\n
-        /start - Start the bot\n
-        /clear - Clear chat history\n
-        /help - Show this help message
+        /start - Begin interacting with the bot\n
+        /clear - Reset the conversation context\n
+        /create_post - Generate a social media post using your product image and description\n
+        /help - Display all available commands\n
         """
     )
 
@@ -139,11 +140,18 @@ if __name__ == "__main__":
         states={
             ASK_IMAGE: [MessageHandler(filters.PHOTO, ask_description)],
             ASK_DESCRIPTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, generate_post)],
-            CHOOSE_CAPTION: [CallbackQueryHandler(handle_caption_choice)]
+            CHOOSE_IMAGE: [
+                CallbackQueryHandler(handle_image_navigation, pattern='^(prev_image|next_image|select_image|regenerate_images|cancel_post)$')
+            ],
+            CHOOSE_CAPTION: [
+                CallbackQueryHandler(handle_caption_choice, pattern='^caption_[0-2]$'),
+                CallbackQueryHandler(generate_post, pattern='^regenerate_captions$'),
+                CallbackQueryHandler(cancel, pattern='^cancel_post$')
+            ]
         },
-        fallbacks=[CommandHandler("cancel", cancel)]
+        fallbacks=[CommandHandler("cancel", cancel)],
+        allow_reentry=True
     )
-    
     
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("clear", clear_command))
@@ -155,6 +163,6 @@ if __name__ == "__main__":
 
     logging.info("Bot is starting...")
     logging.info("Polling...")
-    app.run_polling(poll_interval=3)
+    app.run_polling(poll_interval=3, allowed_updates=Update.ALL_TYPES)
 
     

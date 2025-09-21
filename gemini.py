@@ -1,4 +1,7 @@
-from typing import Final, List, Dict, TypedDict, Any
+from typing import Final, List, TypedDict, Any
+
+import logging
+import setup_logging 
 
 from google import genai
 
@@ -93,11 +96,10 @@ async def generate_marketing_captions(image_path: str, description: str) -> Capt
 
         if not response.text:
             return {"captions": [], "error": "No response from Gemini API"}
-
-        # Extract JSON from response
+        
         json_str = response.text.strip()
         if json_str.startswith("```json"):
-            json_str = json_str[7:-3]  # Remove ```json and ``` markers
+            json_str = json_str[7:-3] 
         
         result = json.loads(json_str)
         return {"captions": result["captions"], "error": None}
@@ -111,17 +113,17 @@ async def generate_marketing_images(image_path: str, description: str) -> ImageR
 
         base_prompts = [
             (
-                "Generate a professional, high-quality marketing image. "
-                f"Product: '{description}'. Lifestyle shot showing it in use by the target audience. "
-                "Modern, Instagram-ready framing and composition."
+                f"""Generate a professional, high-quality marketing image.
+                    Product: '{description}'. Lifestyle shot showing it in use by the target audience.
+                    Modern, Instagram-ready framing and composition."""
             ),
             (
-                "Create an elegant, artisanal studio showcase for this product: "
-                f"'{description}'. Use clean, minimal background and lighting to highlight texture and details."
+                f"""Create an elegant, artisanal studio showcase for this product:
+                '{description}'. Use clean, minimal background and lighting to highlight texture and details."""
             ),
             (
-                "Generate a contextual real-world scene for the product: "
-                f"'{description}'. The image should tell a story of everyday use by the target demographic."
+                f"""Generate a contextual real-world scene for the product: '{description}'. 
+                The image should tell a story of everyday use by the target demographic."""
             ),
         ]
 
@@ -144,15 +146,15 @@ async def generate_marketing_images(image_path: str, description: str) -> ImageR
                                 fpath = os.path.join("tmp", "generated", fname)
                                 img.save(fpath, format="JPEG")
                                 out_images.append({"fileName": fname, "filePath": fpath})
-                                print(f"Generated and saved image: {fpath}")
+                                logging.info(f"Generated and saved image: {fpath}")
                                 break
                             except Exception as e:
-                                print(f"Skipped invalid image bytes: {e}")
+                                logging.error(f"Skipped invalid image bytes: {e}")
                         elif getattr(part, "text", None):
-                            print(f"Model text: {part.text}")
+                            logging.info(f"Model text: {part.text}")
 
             except Exception as e:
-                print(f"Error generating image for prompt {i}: {e}")
+                logging.error(f"Error generating image for prompt {i}: {e}")
                 continue
 
         return {"images": out_images, "error": None} if out_images else {
