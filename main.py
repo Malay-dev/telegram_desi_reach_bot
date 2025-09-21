@@ -6,6 +6,8 @@ import logging
 import os
 from dotenv import load_dotenv
 
+from fastapi import FastAPI, Request
+
 from telegram import Update
 from telegram.constants import ChatAction
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters, ConversationHandler, CallbackQueryHandler
@@ -129,40 +131,51 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
 
 
-if __name__ == "__main__":
-    if TOKEN is None:
-        raise ValueError("TELEGRAM_BOT_TOKEN is not set in environment variables.")
 
-    app = ApplicationBuilder().token(TOKEN).build()
+if TOKEN is None:
+    raise ValueError("TELEGRAM_BOT_TOKEN is not set in environment variables.")
 
-    create_post_conv = ConversationHandler(
-        entry_points=[CommandHandler("create_post", create_post_command)],
-        states={
-            ASK_IMAGE: [MessageHandler(filters.PHOTO, ask_description)],
-            ASK_DESCRIPTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, generate_post)],
-            CHOOSE_IMAGE: [
-                CallbackQueryHandler(handle_image_navigation, pattern='^(prev_image|next_image|select_image|regenerate_images|cancel_post)$')
-            ],
-            CHOOSE_CAPTION: [
-                CallbackQueryHandler(handle_caption_choice, pattern='^caption_[0-2]$'),
-                CallbackQueryHandler(generate_post, pattern='^regenerate_captions$'),
-                CallbackQueryHandler(cancel, pattern='^cancel_post$')
-            ]
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
-        allow_reentry=True
-    )
-    
-    app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CommandHandler("clear", clear_command))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(create_post_conv)
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+app = ApplicationBuilder().token(TOKEN).build()
 
-    app.add_error_handler(error_handler)
+create_post_conv = ConversationHandler(
+    entry_points=[CommandHandler("create_post", create_post_command)],
+    states={
+        ASK_IMAGE: [MessageHandler(filters.PHOTO, ask_description)],
+        ASK_DESCRIPTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, generate_post)],
+        CHOOSE_IMAGE: [
+            CallbackQueryHandler(handle_image_navigation, pattern='^(prev_image|next_image|select_image|regenerate_images|cancel_post)$')
+        ],
+        CHOOSE_CAPTION: [
+            CallbackQueryHandler(handle_caption_choice, pattern='^caption_[0-2]$'),
+            CallbackQueryHandler(generate_post, pattern='^regenerate_captions$'),
+            CallbackQueryHandler(cancel, pattern='^cancel_post$')
+        ]
+    },
+    fallbacks=[CommandHandler("cancel", cancel)],
+    allow_reentry=True
+)
 
-    logging.info("Bot is starting...")
-    logging.info("Polling...")
-    app.run_polling(poll_interval=3, allowed_updates=Update.ALL_TYPES)
+app.add_handler(CommandHandler("start", start_command))
+app.add_handler(CommandHandler("clear", clear_command))
+app.add_handler(CommandHandler("help", help_command))
+app.add_handler(create_post_conv)
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    
+app.add_error_handler(error_handler)
+
+logging.info("Bot is starting...")
+logging.info("Polling...")
+# app.run_polling(poll_interval=3, allowed_updates=Update.ALL_TYPES)
+
+server = FastAPI()
+
+@server.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
+@server.post("/webhook")
+async def webhook(request: Request):
+    data = await request.json()
+    update = Update.de_json(data, app.bot)
+    await app.process_update(update)
+    return {"ok": True}
