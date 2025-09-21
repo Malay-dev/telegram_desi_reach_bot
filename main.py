@@ -4,6 +4,8 @@ import setup_logging
 import logging
 
 import os
+import asyncio
+import uvicorn
 from dotenv import load_dotenv
 
 from fastapi import FastAPI, Request
@@ -20,7 +22,7 @@ load_dotenv()
 
 TOKEN: Final = os.getenv("TELEGRAM_BOT_TOKEN")
 BOT_USERNAME: Final = os.getenv("BOT_USERNAME")
-
+WEBHOOK_URL: Final = os.getenv("WEBHOOK_URL")
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -135,6 +137,9 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 if TOKEN is None:
     raise ValueError("TELEGRAM_BOT_TOKEN is not set in environment variables.")
 
+if WEBHOOK_URL is None:
+    raise ValueError("WEBHOOK_URL is not set in environment variables.")
+
 app = ApplicationBuilder().token(TOKEN).build()
 
 create_post_conv = ConversationHandler(
@@ -169,6 +174,16 @@ logging.info("Polling...")
 
 server = FastAPI()
 
+
+
+async def set_bot_webhook():
+    await app.bot.set_webhook(WEBHOOK_URL)
+    logging.info(f"Webhook set to {WEBHOOK_URL}")
+
+@server.get("/")
+async def root():
+    return {"message": "Bot is running"}
+
 @server.get("/health")
 async def health_check():
     return {"status": "ok"}
@@ -179,3 +194,6 @@ async def webhook(request: Request):
     update = Update.de_json(data, app.bot)
     await app.process_update(update)
     return {"ok": True}
+
+
+asyncio.run(set_bot_webhook())
