@@ -177,6 +177,7 @@ server = FastAPI()
 
 
 async def set_bot_webhook():
+    await app.initialize()
     await app.bot.set_webhook(WEBHOOK_URL)
     logging.info(f"Webhook set to {WEBHOOK_URL}")
 
