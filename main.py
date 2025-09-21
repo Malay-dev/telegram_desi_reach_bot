@@ -4,11 +4,10 @@ import setup_logging
 import logging
 
 import os
-import asyncio
-import uvicorn
 from dotenv import load_dotenv
 
 from fastapi import FastAPI, Request
+from contextlib import asynccontextmanager
 
 from telegram import Update
 from telegram.constants import ChatAction
@@ -174,8 +173,6 @@ logging.info("Polling...")
 
 server = FastAPI()
 
-
-
 async def set_bot_webhook():
     await app.initialize()
     await app.bot.set_webhook(WEBHOOK_URL)
@@ -197,4 +194,11 @@ async def webhook(request: Request):
     return {"ok": True}
 
 
-asyncio.run(set_bot_webhook())
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    await set_bot_webhook()
+    yield
+    
+    
+server = FastAPI(lifespan=lifespan)
