@@ -171,7 +171,15 @@ logging.info("Bot is starting...")
 logging.info("Polling...")
 # app.run_polling(poll_interval=3, allowed_updates=Update.ALL_TYPES)
 
-server = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    await set_bot_webhook()
+    yield
+    
+
+server = FastAPI(lifespan=lifespan)
 
 async def set_bot_webhook():
     await app.initialize()
@@ -192,13 +200,3 @@ async def webhook(request: Request):
     update = Update.de_json(data, app.bot)
     await app.process_update(update)
     return {"ok": True}
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup logic
-    await set_bot_webhook()
-    yield
-    
-    
-server = FastAPI(lifespan=lifespan)
